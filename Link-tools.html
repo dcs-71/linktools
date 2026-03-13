@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinkTools — WhatsApp & QR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #18181f;
+    --surface: #1e1e28;
+    --surface2: #252530;
+    --border: #2a2a38;
+    --border-bright: #3d3d52;
+    --accent: #7c6dfa;
+    --accent2: #a997ff;
+    --accent-glow: rgba(124, 109, 250, 0.18);
+    --green: #22d3a0;
+    --green-glow: rgba(34, 211, 160, 0.15);
+    --text: #e8e8f0;
+    --text-muted: #7a7a9a;
+    --text-dim: #4a4a6a;
+    --danger: #ff5f6d;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background noise texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* Ambient glow blobs */
+  .ambient {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .ambient-1 {
+    width: 500px; height: 400px;
+    background: radial-gradient(circle, rgba(124,109,250,0.08), transparent 70%);
+    top: -100px; left: -100px;
+  }
+  .ambient-2 {
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(34,211,160,0.06), transparent 70%);
+    bottom: -80px; right: -80px;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* HEADER */
+  header {
+    padding: 48px 0 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--green));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #e8e8f0 30%, var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .tagline {
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px;
+    width: fit-content;
+    margin-bottom: 36px;
+  }
+
+  .tab-btn {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: transparent;
+    color: var(--text-muted);
+    display: flex; align-items: center; gap: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  .tab-btn:hover { color: var(--text); }
+
+  .tab-btn.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  .tab-btn.active.tab-wa {
+    background: linear-gradient(135deg, var(--green), #1fb890);
+    color: #0a0a0f;
+    box-shadow: 0 0 20px var(--green-glow);
+  }
+
+  .tab-btn .tab-icon { font-size: 15px; }
+
+  /* PANELS */
+  .panel { display: none; animation: fadeIn 0.25s ease; }
+  .panel.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* CARD */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .card-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* FORM ELEMENTS */
+  .field {
+    margin-bottom: 18px;
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  input[type="text"],
+  input[type="tel"],
+  textarea {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    resize: vertical;
+  }
+
+  input:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--text-dim);
+  }
+
+  textarea { min-height: 100px; }
+
+  /* PHONE INPUT */
+  .phone-input-wrapper {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .phone-input-wrapper:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .phone-prefix {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    border-right: 1px solid var(--border);
+    background: var(--surface2);
+    flex-shrink: 0;
+  }
+
+  .phone-prefix input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--accent2);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    width: 48px;
+    text-align: center;
+    padding: 12px 0;
+    box-shadow: none !important;
+  }
+
+  .phone-number-input {
+    flex: 1;
+    background: transparent;
+    border: none !important;
+    outline: none;
+    box-shadow: none !important;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+  }
+
+  .phone-number-input:focus {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* BUTTONS */
+  .btn {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 13px 24px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #9b8dff);
+    color: #fff;
+    box-shadow: 0 4px 20px var(--accent-glow);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 28px rgba(124,109,250,0.35);
+  }
+
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-green {
+    background: linear-gradient(135deg, var(--green), #1fb890);
+    color: #0a0a0f;
+    font-weight: 700;
+    box-shadow: 0 4px 20px var(--green-glow);
+  }
+
+  .btn-green:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 28px rgba(34,211,160,0.3);
+  }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border-bright);
+    color: var(--text-muted);
+  }
+
+  .btn-outline:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  .btn-sm { padding: 9px 16px; font-size: 12px; }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+
+  /* RESULT BOX */
+  .result-box {
+    display: none;
+    margin-top: 20px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .result-box.show { display: block; }
+
+  .result-url {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    font-size: 12px;
+    color: var(--accent2);
+    word-break: break-all;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .result-url span { flex: 1; }
+
+  .copy-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+  .success-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(34, 211, 160, 0.1);
+    border: 1px solid rgba(34, 211, 160, 0.25);
+    color: var(--green);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    margin-top: 12px;
+  }
+
+  /* QR LAYOUT */
+  .qr-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  /* PRESET GRID */
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .preset-option {
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 8px 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s;
+    background: var(--bg3);
+    color: var(--text-muted);
+  }
+
+  .preset-option:hover { border-color: var(--border-bright); color: var(--text); }
+
+  .preset-option.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 16px var(--accent-glow);
+    color: var(--text);
+  }
+
+  .preset-option svg { width: 52px; height: 52px; }
+
+  .preset-option span {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+  }
+
+  /* PATTERN GRID */
+  .pattern-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .pattern-option {
+    aspect-ratio: 1;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    background: var(--bg3);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .pattern-option:hover { border-color: var(--border-bright); }
+
+  .pattern-option.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 16px var(--accent-glow);
+  }
+
+  .pattern-option svg { width: 38px; height: 38px; }
+
+  /* ERROR CORRECTION */
+  .ec-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .ec-option {
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    background: var(--bg3);
+  }
+
+  .ec-option:hover { border-color: var(--border-bright); }
+
+  .ec-option.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 16px var(--accent-glow);
+  }
+
+  .ec-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+  }
+
+  .ec-sub {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    margin-top: 3px;
+    text-transform: uppercase;
+  }
+
+  /* COLOR INPUT */
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .color-swatch-wrapper {
+    position: relative;
+    width: 40px; height: 40px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .color-swatch-wrapper input[type="color"] {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    background: none;
+  }
+
+  .color-hex {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    width: 110px;
+    transition: border-color 0.2s;
+  }
+
+  .color-hex:focus { border-color: var(--accent); }
+
+  /* QR PREVIEW */
+  .qr-preview-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    position: sticky;
+    top: 20px;
+  }
+
+  .qr-preview-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    align-self: stretch;
+    text-align: center;
+  }
+
+  #qr-canvas-container {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 200px;
+    min-height: 200px;
+  }
+
+  #qr-canvas-container canvas,
+  #qr-canvas-container img {
+    display: block;
+  }
+
+  .qr-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-dim);
+    font-size: 11px;
+    text-align: center;
+    min-height: 160px;
+  }
+
+  .qr-empty-state .icon { font-size: 36px; opacity: 0.3; }
+
+  .download-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* DIVIDER */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+
+  /* SECTION HINT */
+  .hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    line-height: 1.6;
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: var(--surface);
+    border: 1px solid var(--green);
+    color: var(--green);
+    padding: 12px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 999;
+    box-shadow: 0 8px 32px rgba(34,211,160,0.15);
+  }
+
+  .toast.show {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 20px 24px 32px;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+  }
+
+  .footer-text {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.8;
+    letter-spacing: 0.04em;
+  }
+
+  .footer-text span {
+    color: var(--text-muted);
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 680px) {
+    .qr-layout { grid-template-columns: 1fr; }
+    .qr-preview-card { position: static; }
+    .ec-grid { grid-template-columns: repeat(2, 1fr); }
+    .pattern-grid { grid-template-columns: repeat(5, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient ambient-1"></div>
+<div class="ambient ambient-2"></div>
+
+<div class="wrapper">
+  <header>
+    <div class="logo-row">
+      <div class="logo-icon">⚡</div>
+      <h1>LinkTools</h1>
+    </div>
+    <p class="tagline">// herramienta generadora de links de whatsapp y códigos qr</p>
+  </header>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab-btn active tab-wa" onclick="switchTab('wa')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      WhatsApp Link
+    </button>
+    <button class="tab-btn" onclick="switchTab('qr')">
+      <span class="tab-icon">▦</span> QR Code
+    </button>
+  </div>
+
+  <!-- WHATSAPP PANEL -->
+  <div class="panel active" id="panel-wa">
+    <div class="card">
+      <div class="card-title">Número de destino</div>
+      <div class="field">
+        <label>Código de país + número</label>
+        <div class="phone-input-wrapper">
+          <div class="phone-prefix">
+            <input type="tel" id="country-code" placeholder="+51" maxlength="5" value="+51">
+          </div>
+          <input type="tel" class="phone-number-input" id="wa-number" placeholder="987 654 321">
+        </div>
+        <p class="hint">Ingresa el código de país (ej: +51 para Perú, +1 para EE.UU.) y el número sin espacios ni guiones.</p>
+      </div>
+
+      <div class="field">
+        <label>Mensaje predefinido (opcional)</label>
+        <textarea id="wa-message" placeholder="Hola! Me gustaría obtener más información sobre..."></textarea>
+      </div>
+
+      <button class="btn btn-green" onclick="generateWaLink()">
+        <span>▶</span> Generar Link
+      </button>
+
+      <div class="result-box" id="wa-result">
+        <div class="card-title" style="margin-top:20px;">Link generado</div>
+        <div class="result-url">
+          <span id="wa-link-text"></span>
+          <button class="copy-btn" id="copy-wa-btn" onclick="copyWaLink()">Copiar</button>
+        </div>
+        <div class="btn-row">
+          <a id="wa-open-link" href="#" target="_blank" rel="noopener">
+            <button class="btn btn-green btn-sm">
+              <span>↗</span> Abrir en WhatsApp
+            </button>
+          </a>
+          <button class="btn btn-outline btn-sm" onclick="generateQrFromWa()">
+            <span>▦</span> Crear QR de este link
+          </button>
+        </div>
+        <div class="success-badge" id="wa-success-badge" style="display:none">
+          <span>✓</span> ¡Link copiado!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR PANEL -->
+  <div class="panel" id="panel-qr">
+    <div class="qr-layout">
+      <!-- LEFT: Controls -->
+      <div>
+        <div class="card">
+          <div class="card-title">Contenido del QR</div>
+          <div class="field">
+            <label>URL o texto</label>
+            <input type="text" id="qr-text" placeholder="https://tusitio.com" oninput="scheduleQrUpdate()">
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Nivel de escaneo (Error Correction)</div>
+          <div class="ec-grid" id="ec-grid">
+            <div class="ec-option selected" data-ec="Q" onclick="selectEC(this, 'Q')">
+              <div class="ec-label">Q</div>
+              <div class="ec-sub">Alto</div>
+            </div>
+            <div class="ec-option" data-ec="M" onclick="selectEC(this, 'M')">
+              <div class="ec-label">M</div>
+              <div class="ec-sub">Medio</div>
+            </div>
+            <div class="ec-option" data-ec="L" onclick="selectEC(this, 'L')">
+              <div class="ec-label">L</div>
+              <div class="ec-sub">Básico</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Patrón</div>
+          <div class="preset-grid" id="preset-grid">
+            <div class="preset-option selected" onclick="selectPreset(this, 'classic')" title="Clásico">
+              <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- body dots -->
+                <rect x="22" y="6" width="5" height="5" fill="currentColor"/>
+                <rect x="29" y="6" width="5" height="5" fill="currentColor"/>
+                <rect x="22" y="13" width="5" height="5" fill="currentColor"/>
+                <rect x="36" y="13" width="5" height="5" fill="currentColor"/>
+                <rect x="29" y="20" width="5" height="5" fill="currentColor"/>
+                <rect x="36" y="6" width="5" height="5" fill="currentColor"/>
+                <rect x="22" y="27" width="5" height="5" fill="currentColor"/>
+                <rect x="36" y="27" width="5" height="5" fill="currentColor"/>
+                <rect x="29" y="34" width="5" height="5" fill="currentColor"/>
+                <!-- top-left eye -->
+                <rect x="2" y="2" width="17" height="17" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="7" y="7" width="7" height="7" fill="currentColor"/>
+                <!-- bottom-left eye -->
+                <rect x="2" y="41" width="17" height="17" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="7" y="46" width="7" height="7" fill="currentColor"/>
+                <!-- top-right eye -->
+                <rect x="41" y="2" width="17" height="17" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="46" y="7" width="7" height="7" fill="currentColor"/>
+              </svg>
+              <span>Clásico</span>
+            </div>
+            <div class="preset-option" onclick="selectPreset(this, 'rounded')" title="Redondeado">
+              <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- body dots rounded -->
+                <rect x="22" y="6" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="29" y="6" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="22" y="13" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="36" y="13" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="29" y="20" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="36" y="6" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="22" y="27" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="36" y="27" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="29" y="34" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <!-- top-left eye rounded -->
+                <rect x="2" y="2" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="7" y="7" width="7" height="7" fill="currentColor"/>
+                <!-- bottom-left eye rounded -->
+                <rect x="2" y="41" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="7" y="46" width="7" height="7" fill="currentColor"/>
+                <!-- top-right eye rounded -->
+                <rect x="41" y="2" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="46" y="7" width="7" height="7" fill="currentColor"/>
+              </svg>
+              <span>Redondeado</span>
+            </div>
+            <div class="preset-option" onclick="selectPreset(this, 'dots')" title="Puntos">
+              <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- body circles -->
+                <circle cx="24.5" cy="8.5" r="2.5" fill="currentColor"/>
+                <circle cx="31.5" cy="8.5" r="2.5" fill="currentColor"/>
+                <circle cx="24.5" cy="15.5" r="2.5" fill="currentColor"/>
+                <circle cx="38.5" cy="15.5" r="2.5" fill="currentColor"/>
+                <circle cx="31.5" cy="22.5" r="2.5" fill="currentColor"/>
+                <circle cx="38.5" cy="8.5" r="2.5" fill="currentColor"/>
+                <circle cx="24.5" cy="29.5" r="2.5" fill="currentColor"/>
+                <circle cx="38.5" cy="29.5" r="2.5" fill="currentColor"/>
+                <circle cx="31.5" cy="36.5" r="2.5" fill="currentColor"/>
+                <!-- top-left eye rounded -->
+                <rect x="2" y="2" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="7" y="7" width="7" height="7" fill="currentColor"/>
+                <!-- bottom-left eye rounded -->
+                <rect x="2" y="41" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="7" y="46" width="7" height="7" fill="currentColor"/>
+                <!-- top-right eye rounded -->
+                <rect x="41" y="2" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="3"/>
+                <rect x="46" y="7" width="7" height="7" fill="currentColor"/>
+              </svg>
+              <span>Puntos</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Color</div>
+          <div class="field">
+            <label>Color del QR</label>
+            <div class="color-row">
+              <div class="color-swatch-wrapper">
+                <input type="color" id="qr-color-picker" value="#000000" oninput="syncColor('picker', this.value)">
+              </div>
+              <input type="text" class="color-hex" id="qr-color-hex" value="#000000" placeholder="#000000" oninput="syncColor('hex', this.value)" maxlength="7">
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Color de fondo</label>
+            <div class="color-row">
+              <div class="color-swatch-wrapper">
+                <input type="color" id="qr-bg-picker" value="#ffffff" oninput="syncBgColor('picker', this.value)">
+              </div>
+              <input type="text" class="color-hex" id="qr-bg-hex" value="#ffffff" placeholder="#ffffff" oninput="syncBgColor('hex', this.value)" maxlength="7">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Preview -->
+      <div>
+        <div class="qr-preview-card">
+          <div class="qr-preview-title">Vista previa</div>
+          <div id="qr-canvas-container">
+            <div class="qr-empty-state" id="qr-empty">
+              <span class="icon">▦</span>
+              <span>Ingresa una URL o texto para generar el QR</span>
+            </div>
+          </div>
+          <button class="btn btn-primary download-btn" onclick="downloadQR()">
+            <span>↓</span> Descargar PNG
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p class="footer-text">
+    <span>Herramienta de uso interno para Total Therapy</span><br>
+    por Diego Cabanillas
+  </p>
+</footer>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ==========================================
+// STATE
+// ==========================================
+const state = {
+  ec: 'Q',
+  bodyPattern: 'square',
+  eyePattern: 'square',
+  color: '#000000',
+  bgColor: '#ffffff',
+  qrInstance: null,
+  updateTimer: null,
+};
+
+// ==========================================
+// TABS
+// ==========================================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    const isActive = (tab === 'wa' && i === 0) || (tab === 'qr' && i === 1);
+    b.classList.toggle('active', isActive);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+// ==========================================
+// WHATSAPP
+// ==========================================
+function generateWaLink() {
+  const raw = document.getElementById('wa-number').value.trim();
+  const code = document.getElementById('country-code').value.trim().replace('+','');
+  const msg = document.getElementById('wa-message').value.trim();
+
+  if (raw.length < 7) { showToast('⚠ Ingresa un número válido'); return; }
+
+  const fullNumber = (code + raw).replace(/\D/g, '');
+  const link = 'https://wa.me/' + fullNumber + (msg ? '?text=' + encodeURIComponent(msg) : '');
+
+  document.getElementById('wa-link-text').textContent = link;
+  document.getElementById('wa-open-link').href = link;
+  document.getElementById('wa-result').classList.add('show');
+  document.getElementById('wa-success-badge').style.display = 'none';
+}
+
+function copyWaLink() {
+  const text = document.getElementById('wa-link-text').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-wa-btn');
+    btn.textContent = '✓ Copiado';
+    btn.classList.add('copied');
+    document.getElementById('wa-success-badge').style.display = 'inline-flex';
+    setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('copied'); }, 2000);
+    showToast('✓ Link copiado al portapapeles');
+  });
+}
+
+function generateQrFromWa() {
+  const link = document.getElementById('wa-link-text').textContent;
+  document.getElementById('qr-text').value = link;
+  switchTab('qr');
+  generateQR();
+}
+
+// ==========================================
+// QR CODE
+// ==========================================
+
+// ==========================================
+// PRESETS
+// ==========================================
+const presets = {
+  classic:  { bodyPattern: 'square',  eyePattern: 'square' },
+  rounded:  { bodyPattern: 'rounded', eyePattern: 'rounded-outer' },
+  dots:     { bodyPattern: 'dots',    eyePattern: 'rounded-outer' },
+};
+
+// Keep eye pattern definitions for the renderer
+const eyePatterns = [
+  { id: 'square',       outer: 'square',        inner: 'square' },
+  { id: 'rounded-outer',outer: 'extra-rounded', inner: 'square' },
+];
+
+function selectPreset(el, id) {
+  state.bodyPattern = presets[id].bodyPattern;
+  state.eyePattern  = presets[id].eyePattern;
+  document.querySelectorAll('.preset-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  generateQR();
+}
+
+function selectEC(el, val) {
+  state.ec = val;
+  document.querySelectorAll('.ec-option').forEach(e => e.classList.remove('selected'));
+  el.classList.add('selected');
+  generateQR();
+}
+
+function syncColor(source, val) {
+  if (source === 'picker') {
+    document.getElementById('qr-color-hex').value = val;
+  } else {
+    if (val.length === 7 && val.startsWith('#')) {
+      document.getElementById('qr-color-picker').value = val;
+    }
+  }
+  state.color = val.startsWith('#') ? val : '#' + val;
+  scheduleQrUpdate();
+}
+
+function syncBgColor(source, val) {
+  if (source === 'picker') {
+    document.getElementById('qr-bg-hex').value = val;
+  } else {
+    if (val.length === 7 && val.startsWith('#')) {
+      document.getElementById('qr-bg-picker').value = val;
+    }
+  }
+  state.bgColor = val.startsWith('#') ? val : '#' + val;
+  scheduleQrUpdate();
+}
+
+function scheduleQrUpdate() {
+  clearTimeout(state.updateTimer);
+  state.updateTimer = setTimeout(generateQR, 350);
+}
+
+// ==========================================
+// QR GENERATION — matrix-based, no pixel hacks
+// ==========================================
+
+function generateQR() {
+  const text = document.getElementById('qr-text').value.trim();
+  const container = document.getElementById('qr-canvas-container');
+
+  if (text.length === 0) {
+    container.innerHTML = `<div class="qr-empty-state" id="qr-empty">
+      <span class="icon">▦</span>
+      <span>Ingresa una URL o texto para generar el QR</span>
+    </div>`;
+    return;
+  }
+
+  try {
+    // qrcode-generator: type 0 = auto size
+    const qr = qrcode(0, state.ec);
+    qr.addData(text);
+    qr.make();
+    drawQRToCanvas(qr, container);
+  } catch(e) {
+    // If data is too long for the EC level, fall back to L
+    try {
+      const qr = qrcode(0, 'L');
+      qr.addData(text);
+      qr.make();
+      drawQRToCanvas(qr, container);
+    } catch(e2) {
+      container.innerHTML = `<div class="qr-empty-state"><span class="icon">⚠</span><span>Texto demasiado largo</span></div>`;
+    }
+  }
+}
+
+function drawQRToCanvas(qr, container) {
+  const n = qr.getModuleCount();  // actual module count (21, 25, 29, 33…)
+  const size = 220;
+  const margin = 2; // modules of quiet zone already included, just add small padding
+  const cellSize = (size - margin * 2) / n;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const fg = state.color || '#000000';
+  const bg = state.bgColor || '#ffffff';
+
+  // Background
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = fg;
+
+  // Eye zones to skip in body loop (7x7 each)
+  const isEyeZone = (r, c) => (
+    (r < 7 && c < 7) ||                  // top-left
+    (r < 7 && c >= n - 7) ||             // top-right
+    (r >= n - 7 && c < 7)                // bottom-left
+  );
+
+  const preset = state.bodyPattern; // 'square' | 'rounded' | 'dots'
+
+  // ---- Draw body modules ----
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (isEyeZone(r, c)) continue;
+      if (!qr.isDark(r, c)) continue;
+
+      const x = margin + c * cellSize;
+      const y = margin + r * cellSize;
+      const pad = cellSize * 0.1;
+
+      ctx.beginPath();
+      switch(preset) {
+        case 'dots':
+          ctx.arc(x + cellSize/2, y + cellSize/2, cellSize/2 - pad, 0, Math.PI * 2);
+          break;
+        case 'rounded':
+          rrect(ctx, x + pad, y + pad, cellSize - pad*2, cellSize - pad*2, cellSize * 0.3);
+          break;
+        default: // square
+          ctx.rect(x + pad, y + pad, cellSize - pad*2, cellSize - pad*2);
+      }
+      ctx.fill();
+    }
+  }
+
+  // ---- Draw eyes ----
+  const eyePositions = [
+    { r: 0,     c: 0 },      // top-left
+    { r: 0,     c: n - 7 },  // top-right
+    { r: n - 7, c: 0 },      // bottom-left
+  ];
+
+  const rounded = (preset === 'rounded' || preset === 'dots');
+
+  eyePositions.forEach(({ r, c }) => {
+    const ex = margin + c * cellSize;
+    const ey = margin + r * cellSize;
+    const outerPx = 7 * cellSize;
+    const innerPx = 3 * cellSize;
+    const innerOff = 2 * cellSize;
+    const eyeRadius = rounded ? outerPx * 0.22 : 0;
+    const innerRadius = rounded ? innerPx * 0.18 : 0;
+
+    // Outer frame (ring): draw outer filled, subtract inner
+    ctx.beginPath();
+    rrect(ctx, ex, ey, outerPx, outerPx, eyeRadius);
+    rrect(ctx, ex + cellSize, ey + cellSize, outerPx - cellSize*2, outerPx - cellSize*2, Math.max(0, eyeRadius - cellSize * 0.6));
+    ctx.fill('evenodd');
+
+    // Inner solid square/rounded
+    ctx.beginPath();
+    rrect(ctx, ex + innerOff + cellSize*0.1, ey + innerOff + cellSize*0.1,
+               innerPx - cellSize*0.2, innerPx - cellSize*0.2, innerRadius);
+    ctx.fill();
+  });
+
+  container.innerHTML = '';
+  container.appendChild(canvas);
+}
+
+// Path helper — rounded rectangle (does NOT call beginPath, caller does)
+function rrect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function downloadQR() {
+  const canvas = document.querySelector('#qr-canvas-container canvas');
+  if (canvas === null || canvas === undefined) { showToast('⚠ Genera un QR primero'); return; }
+
+  const link = document.createElement('a');
+  link.download = 'qr-code.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  showToast('✓ QR descargado como PNG');
+}
+
+// ==========================================
+// TOAST
+// ==========================================
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ==========================================
+// INIT
+// ==========================================
+
+// Allow Enter to generate WA link
+document.getElementById('wa-number').addEventListener('keydown', e => {
+  if (e.key === 'Enter') generateWaLink();
+});
+
+// Auto-generate QR on load with placeholder
+document.getElementById('qr-text').addEventListener('keydown', e => {
+  if (e.key === 'Enter') generateQR();
+});
+</script>
+</body>
+</html>
